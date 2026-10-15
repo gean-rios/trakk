@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { TicketCard } from './ticket-card';
 import { SelectionProvider } from '@/contexts/selection-context';
 import type { TicketWithRelations } from '@/lib/types';
@@ -145,4 +145,195 @@ describe('TicketCard — priority tint', () => {
       expect(root.className).toContain(expectedClass);
     },
   );
+});
+
+describe('TicketCard — updated-at tooltip', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-15T22:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders the trigger label and mounts the panel in the closed state', () => {
+    renderCard(
+      <TicketCard
+        {...baseProps}
+        ticket={makeTicket({ updatedAt: '2026-10-15T20:00:00Z' })}
+      />,
+    );
+    const label = screen.getByTestId('ticket-updated-at');
+    expect(label).toBeInTheDocument();
+    expect(label.textContent).toBe('2h ago');
+
+    const panel = screen.getByTestId('ticket-updated-at-tooltip');
+    expect(panel).toBeInTheDocument();
+    expect(panel).toHaveAttribute('aria-hidden', 'true');
+    expect(panel.className).toContain('opacity-0');
+    expect(panel.className).toContain('invisible');
+    expect(panel.textContent).not.toBe('');
+  });
+
+  it('opens the tooltip on keyboard focus', () => {
+    renderCard(
+      <TicketCard
+        {...baseProps}
+        ticket={makeTicket({ updatedAt: '2026-10-15T20:00:00Z' })}
+      />,
+    );
+    const label = screen.getByTestId('ticket-updated-at');
+    // fireEvent.focus dispatches React's onFocus; jsdom does not move
+    // document.activeElement for non-form focus, so we follow up with
+    // the DOM .focus() (wrapped in act) to verify the label is focusable
+    // and the onFocus handler wired up (React re-renders synchronously here).
+    fireEvent.focus(label);
+    act(() => { label.focus(); });
+    expect(document.activeElement).toBe(label);
+
+    const panel = screen.getByTestId('ticket-updated-at-tooltip');
+    expect(panel).toHaveAttribute('aria-hidden', 'false');
+    expect(panel.className).toContain('opacity-100');
+    expect(panel.className).toContain('visible');
+  });
+
+  it('opens the tooltip on mouseEnter', () => {
+    renderCard(
+      <TicketCard
+        {...baseProps}
+        ticket={makeTicket({ updatedAt: '2026-10-15T20:00:00Z' })}
+      />,
+    );
+    const label = screen.getByTestId('ticket-updated-at');
+    fireEvent.mouseEnter(label);
+
+    const panel = screen.getByTestId('ticket-updated-at-tooltip');
+    expect(panel).toHaveAttribute('aria-hidden', 'false');
+    expect(panel.className).toContain('opacity-100');
+    expect(panel.className).toContain('visible');
+  });
+
+  it('closes the tooltip on mouseLeave, blur, and Escape (with focus returned on Escape)', () => {
+    renderCard(
+      <TicketCard
+        {...baseProps}
+        ticket={makeTicket({ updatedAt: '2026-10-15T20:00:00Z' })}
+      />,
+    );
+    const label = screen.getByTestId('ticket-updated-at');
+    const panel = screen.getByTestId('ticket-updated-at-tooltip');
+
+    // mouseLeave closes after mouseEnter open
+    fireEvent.mouseEnter(label);
+    expect(panel).toHaveAttribute('aria-hidden', 'false');
+    fireEvent.mouseLeave(label);
+    expect(panel).toHaveAttribute('aria-hidden', 'true');
+    expect(panel.className).toContain('opacity-0');
+
+    // blur closes after focus open
+    fireEvent.focus(label);
+    expect(panel).toHaveAttribute('aria-hidden', 'false');
+    fireEvent.blur(label);
+    expect(panel).toHaveAttribute('aria-hidden', 'true');
+    expect(panel.className).toContain('opacity-0');
+
+    // Escape closes AND returns focus to the trigger
+    fireEvent.focus(label);
+    act(() => { label.focus(); });
+    expect(panel).toHaveAttribute('aria-hidden', 'false');
+    fireEvent.keyDown(label, { key: 'Escape' });
+    expect(panel).toHaveAttribute('aria-hidden', 'true');
+    expect(panel.className).toContain('opacity-0');
+    expect(document.activeElement).toBe(label);
+  });
+
+  it('links trigger and panel via aria-describedby ↔ id with the right roles', () => {
+    renderCard(
+      <TicketCard
+        {...baseProps}
+        ticket={makeTicket({ updatedAt: '2026-10-15T20:00:00Z' })}
+      />,
+    );
+    const label = screen.getByTestId('ticket-updated-at');
+    const panel = screen.getByTestId('ticket-updated-at-tooltip');
+    expect(label.getAttribute('aria-describedby')).toBe(panel.id);
+    expect(panel.id).toBe(label.getAttribute('aria-describedby'));
+    expect(panel).toHaveAttribute('role', 'tooltip');
+    expect(label).toHaveAttribute('role', 'button');
+  });
+
+  it('renders nothing for the tooltip group when updatedAt is missing, empty, or unparseable', () => {
+    const { rerender } = renderCard(
+      <TicketCard
+        {...baseProps}
+        ticket={makeTicket({ updatedAt: '' })}
+      />,
+    );
+    expect(screen.queryByTestId('ticket-updated-at')).toBeNull();
+    expect(screen.queryByTestId('ticket-updated-at-tooltip')).toBeNull();
+
+    rerender(
+      <SelectionProvider>
+        <TicketCard
+          {...baseProps}
+          ticket={makeTicket({ updatedAt: 'not-a-date' })}
+        />
+      </SelectionProvider>,
+    );
+    expect(screen.queryByTestId('ticket-updated-at')).toBeNull();
+    expect(screen.queryByTestId('ticket-updated-at-tooltip')).toBeNull();
+
+    rerender(
+      <SelectionProvider>
+        <TicketCard
+          {...baseProps}
+          ticket={makeTicket({ updatedAt: undefined as unknown as string })}
+        />
+      </SelectionProvider>,
+    );
+    expect(screen.queryByTestId('ticket-updated-at')).toBeNull();
+    expect(screen.queryByTestId('ticket-updated-at-tooltip')).toBeNull();
+  });
+
+  it('does NOT propagate click or pointerDown on the trigger to the card root', () => {
+    const onClick = vi.fn();
+    renderCard(
+      <TicketCard
+        {...baseProps}
+        onClick={onClick}
+        ticket={makeTicket({ updatedAt: '2026-10-15T20:00:00Z' })}
+      />,
+    );
+    const label = screen.getByTestId('ticket-updated-at');
+
+    fireEvent.pointerDown(label);
+    expect(onClick).not.toHaveBeenCalled();
+
+    fireEvent.click(label);
+    expect(onClick).not.toHaveBeenCalled();
+
+    // Positive control: clicking the card root DOES propagate.
+    fireEvent.click(screen.getByRole('listitem'));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the tooltip panel text as the absolute date/time string', () => {
+    const updatedAt = '2026-10-15T20:00:00Z';
+    renderCard(
+      <TicketCard
+        {...baseProps}
+        ticket={makeTicket({ updatedAt })}
+      />,
+    );
+    const expected = new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(updatedAt));
+    const panel = screen.getByTestId('ticket-updated-at-tooltip');
+    expect(panel.textContent).toBe(expected);
+  });
 });
