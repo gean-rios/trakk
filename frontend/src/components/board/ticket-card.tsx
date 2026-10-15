@@ -16,7 +16,7 @@ import type { TicketWithRelations, Priority } from '@/lib/types';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { DueDateBadge } from '@/components/tickets/DueDateBadge';
 import { useSelectionContext } from '@/contexts/selection-context';
-import { cn } from '@/lib/utils';
+import { cn, formatRelativeTime } from '@/lib/utils';
 
 const PRIORITY_BORDER: Record<Priority, string> = {
   URGENT: 'border-t-red-500',
@@ -49,6 +49,16 @@ const PRIORITY_LABEL: Record<Priority, string> = {
   LOW: 'Low',
   NONE: 'None',
 };
+
+function formatTooltipDateTime(date: string | Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(date));
+}
 
 interface TicketCardProps {
   ticket: TicketWithRelations;
@@ -86,6 +96,23 @@ export function TicketCard({
   };
 
   const ticketId = `${projectKey}-${ticket.number}`;
+
+  const labelId = React.useId();
+  const triggerRef = React.useRef<HTMLSpanElement>(null);
+  const [tooltipOpen, setTooltipOpen] = React.useState(false);
+  const showTooltip = () => setTooltipOpen(true);
+  const hideTooltip = () => setTooltipOpen(false);
+  const onKeyDownTrigger = (e: React.KeyboardEvent<HTMLSpanElement>) => {
+    if (e.key === 'Escape') {
+      setTooltipOpen(false);
+      triggerRef.current?.focus();
+    }
+  };
+
+  const updatedAtValid =
+    typeof ticket.updatedAt === 'string'
+    && ticket.updatedAt.length > 0
+    && !Number.isNaN(new Date(ticket.updatedAt).getTime());
 
   return (
     <div
@@ -204,6 +231,41 @@ export function TicketCard({
             {PRIORITY_LABEL[ticket.priority]}
           </span>
           <DueDateBadge dueDate={ticket.dueDate} compact />
+          {updatedAtValid && (
+            <span className="relative inline-flex">
+              <span
+                ref={triggerRef}
+                role="button"
+                tabIndex={0}
+                aria-describedby={labelId}
+                data-testid="ticket-updated-at"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseEnter={showTooltip}
+                onMouseLeave={hideTooltip}
+                onFocus={showTooltip}
+                onBlur={hideTooltip}
+                onKeyDown={onKeyDownTrigger}
+                className="inline-flex items-center font-mono text-[10px] tracking-[2px] uppercase text-trakk-text-secondary"
+              >
+                {formatRelativeTime(ticket.updatedAt)}
+              </span>
+              <span
+                id={labelId}
+                role="tooltip"
+                data-testid="ticket-updated-at-tooltip"
+                aria-hidden={!tooltipOpen}
+                className={cn(
+                  'pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2',
+                  'whitespace-nowrap rounded-panel border border-trakk-border bg-trakk-surface px-2 py-1',
+                  'font-mono text-[10px] tracking-wide text-trakk-text shadow-card',
+                  tooltipOpen ? 'opacity-100 visible' : 'opacity-0 invisible',
+                )}
+              >
+                {formatTooltipDateTime(ticket.updatedAt)}
+              </span>
+            </span>
+          )}
         </div>
         {ticket.assignee ? (
           <Avatar className="h-6 w-6">
