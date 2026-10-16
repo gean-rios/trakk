@@ -186,6 +186,9 @@ S3_SECRET_ACCESS_KEY=
 S3_PUBLIC_URL=
 AVATAR_UPLOAD_DIR=
 EOF
+
+> **Why `NODE_ENV=development` for a plain-HTTP test deploy:** `backend/src/routes/auth.routes.ts` sets the session cookie's `Secure` flag from `config.NODE_ENV === 'production'`. Over plain HTTP, a `Secure` cookie is dropped by the browser, so `/dashboard` bounces back to `/login` even though the login returns 200. For a test deploy reached over plain HTTP, set `NODE_ENV=development` in this `.env` so the cookie is issued without `Secure`. **For a real production deploy**, `NODE_ENV=production` is correct AND HTTPS must terminate in front of the backend (e.g., at an ALB) so the `Secure` cookie is honored on the way back from the browser; this codebase assumes HTTPS terminates at one common origin (see the comment in `backend/src/config.ts`: "Prod doesn't need this — frontend and backend share one ALB origin").
+
 chmod 600 .env
 ```
 
