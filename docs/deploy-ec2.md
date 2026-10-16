@@ -51,7 +51,7 @@ Notes for the implementer:
 - The filter on subnets is `default-for-az`, **not** `isDefault`. The latter is invalid for `describe-subnets` and returns `InvalidParameterValue`.
 - `VPC_ID` is determined dynamically — do **not** hard-code the value seen on 2026-10-16, in case the default VPC has been recreated since then.
 - `AMI_ID` is fetched from SSM (no need to fall back to `describe-images`) unless `ssm get-parameter` is rejected by the ALLOW rules.
-- `162.120.186.170/32` is the operator's office IP — fixed by the constraints, do **not** substitute the sandbox IP here.
+- `OPERATOR_IP/32` (the operator's office IP) is what you put in the two `--cidr` rules below — replace it at run time with your own public IP; do **not** substitute the sandbox IP here.
 
 ## 4. Create the key pair (lives on the sandbox, never in the repo)
 
@@ -85,10 +85,10 @@ aws ec2 authorize-security-group-ingress --region us-east-1 \
 # HTTP from the office
 aws ec2 authorize-security-group-ingress --region us-east-1 \
   --group-id "$SG_ID" \
-  --protocol tcp --port 80  --cidr 162.120.186.170/32
+  --protocol tcp --port 80  --cidr OPERATOR_IP/32
 aws ec2 authorize-security-group-ingress --region us-east-1 \
   --group-id "$SG_ID" \
-  --protocol tcp --port 3000 --cidr 162.120.186.170/32
+  --protocol tcp --port 3000 --cidr OPERATOR_IP/32
 ```
 
 ## 6. Launch the EC2 instance (t3.small, AL2023, public IP)
