@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
+import { TestEnvBanner } from "@/components/layout/TestEnvBanner";
+
+const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV;
+
 const barlow = localFont({
   src: [
     { path: "../../public/fonts/barlow-300.woff2", weight: "300", style: "normal" },
@@ -55,6 +59,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-trakk-bg text-trakk-text font-body antialiased">
+        <TestEnvBanner />
         {children}
       </body>
     </html>
