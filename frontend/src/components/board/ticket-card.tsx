@@ -15,8 +15,9 @@ import {
 import type { TicketWithRelations, Priority } from '@/lib/types';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { DueDateBadge } from '@/components/tickets/DueDateBadge';
+import { Tooltip } from '@/components/ui/tooltip';
 import { useSelectionContext } from '@/contexts/selection-context';
-import { cn } from '@/lib/utils';
+import { cn, formatDateTime, formatRelativeTime } from '@/lib/utils';
 
 const PRIORITY_BORDER: Record<Priority, string> = {
   URGENT: 'border-t-red-500',
@@ -204,6 +205,15 @@ export function TicketCard({
             {PRIORITY_LABEL[ticket.priority]}
           </span>
           <DueDateBadge dueDate={ticket.dueDate} compact />
+          <Tooltip content={formatDateTime(ticket.updatedAt)}>
+            <span
+              tabIndex={0}
+              className="font-mono text-[10px] tracking-[1px] uppercase text-trakk-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--trakk-teal)]"
+              data-testid="ticket-updated-label"
+            >
+              {formatRelativeTime(ticket.updatedAt)}
+            </span>
+          </Tooltip>
         </div>
         {ticket.assignee ? (
           <Avatar className="h-6 w-6">

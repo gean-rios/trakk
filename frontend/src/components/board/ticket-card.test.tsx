@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { TicketCard } from './ticket-card';
 import { SelectionProvider } from '@/contexts/selection-context';
 import type { TicketWithRelations } from '@/lib/types';
@@ -145,4 +145,73 @@ describe('TicketCard — priority tint', () => {
       expect(root.className).toContain(expectedClass);
     },
   );
+});
+
+// Offset-based fixture: makeTicket's default updatedAt is a 2024 date, which
+// formatRelativeTime renders as an absolute date rather than a relative string.
+function isoOffsetHours(hours: number): string {
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
+describe('TicketCard — updated-time tooltip', () => {
+  it('renders a relative-time label in the footer, keyboard-focusable', () => {
+    renderCard(
+      <TicketCard {...baseProps} ticket={makeTicket({ updatedAt: isoOffsetHours(2) })} />,
+    );
+    const label = screen.getByTestId('ticket-updated-label');
+    expect(label).toHaveTextContent('2h ago');
+    expect(label).toHaveAttribute('tabindex', '0');
+  });
+
+  it('renders nothing in the DOM while the tooltip is closed', () => {
+    renderCard(
+      <TicketCard {...baseProps} ticket={makeTicket({ updatedAt: isoOffsetHours(2) })} />,
+    );
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('opens on hover and closes on mouse leave', () => {
+    renderCard(
+      <TicketCard {...baseProps} ticket={makeTicket({ updatedAt: isoOffsetHours(2) })} />,
+    );
+    const label = screen.getByTestId('ticket-updated-label');
+    fireEvent.mouseEnter(label);
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    fireEvent.mouseLeave(label);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('opens on keyboard focus and closes on blur', () => {
+    renderCard(
+      <TicketCard {...baseProps} ticket={makeTicket({ updatedAt: isoOffsetHours(2) })} />,
+    );
+    const label = screen.getByTestId('ticket-updated-label');
+    fireEvent.focus(label);
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    fireEvent.blur(label);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('dismisses on Escape', () => {
+    renderCard(
+      <TicketCard {...baseProps} ticket={makeTicket({ updatedAt: isoOffsetHours(2) })} />,
+    );
+    const label = screen.getByTestId('ticket-updated-label');
+    fireEvent.focus(label);
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    fireEvent.keyDown(label, { key: 'Escape' });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('shows the absolute date with a clock time, not the relative label', () => {
+    renderCard(
+      <TicketCard {...baseProps} ticket={makeTicket({ updatedAt: isoOffsetHours(2) })} />,
+    );
+    const label = screen.getByTestId('ticket-updated-label');
+    fireEvent.focus(label);
+    const tooltip = screen.getByRole('tooltip');
+    // Regex, not an exact string: the rendered value shifts with the timezone.
+    expect(tooltip).toHaveTextContent(/[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{2}:\d{2}/);
+    expect(tooltip.textContent).not.toBe('2h ago');
+  });
 });
