@@ -204,7 +204,17 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenuSeparator: () => <hr />,
 }));
 
+// Stub sonner so the toast calls can be asserted instead of rendering a
+// real toaster.
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 import { TicketDetailSheet } from './ticket-detail-sheet';
+import { toast } from 'sonner';
 
 const baseProps = {
   projectId: 'proj-1',
@@ -476,5 +486,93 @@ describe('TicketDetailSheet — Attachments section', () => {
     // No file has been picked, so no Attach button is rendered. The handler
     // guard is exercised indirectly: upload must not have been called.
     expect(uploadAttachmentMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('TicketDetailSheet — Copy link button', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // jsdom implements no Clipboard API, so each test installs (or, for the
+    // missing-API case, deliberately omits) its own stub.
+    delete (navigator as { clipboard?: Clipboard }).clipboard;
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+    delete (navigator as { clipboard?: Clipboard }).clipboard;
+  });
+
+  const COPY_LABEL = 'Copy link';
+
+  it('renders the Copy link button for a member', () => {
+    render(<TicketDetailSheet {...baseProps} userRole="MEMBER" />);
+
+    expect(
+      screen.getByRole('button', { name: COPY_LABEL }),
+    ).toBeInTheDocument();
+  });
+
+  it('renders the Copy link button for a viewer (copying a link is read-only)', () => {
+    render(<TicketDetailSheet {...baseProps} userRole="VIEWER" />);
+
+    expect(
+      screen.getByRole('button', { name: COPY_LABEL }),
+    ).toBeInTheDocument();
+  });
+
+  it('copies the ticket URL and confirms with a success toast', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+      writable: true,
+    });
+
+    render(<TicketDetailSheet {...baseProps} ticketNumber={42} userRole="MEMBER" />);
+
+    fireEvent.click(screen.getByRole('button', { name: COPY_LABEL }));
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith('Link copied');
+    });
+
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining('/projects/proj-1/tickets/42'),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('shows an error toast when the Clipboard API rejects', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('NotAllowedError'));
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+      writable: true,
+    });
+
+    render(<TicketDetailSheet {...baseProps} userRole="MEMBER" />);
+
+    fireEvent.click(screen.getByRole('button', { name: COPY_LABEL }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Could not copy link');
+    });
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('shows an error toast when the Clipboard API is missing entirely', async () => {
+    // navigator.clipboard is absent in jsdom — the handler must guard for it
+    // instead of throwing a TypeError on `undefined.writeText`.
+    expect(navigator.clipboard).toBeUndefined();
+
+    render(<TicketDetailSheet {...baseProps} userRole="MEMBER" />);
+
+    fireEvent.click(screen.getByRole('button', { name: COPY_LABEL }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('Could not copy link');
+    });
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

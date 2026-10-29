@@ -6,6 +6,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import {
   AlertTriangle,
   ChevronDown,
+  Copy,
   History,
   Link2,
   MoreHorizontal,
@@ -216,6 +217,22 @@ export function TicketDetailSheet({
     [stagedFiles, uploadAttachment],
   );
 
+  // Copies the ticket's permanent address (not the current window URL, which
+  // on the board is a query-param board URL). `writeText` is called straight
+  // from the click handler because the Clipboard API requires a user gesture.
+  const handleCopyLink = async () => {
+    const url = `${window.location.origin}/projects/${projectId}/tickets/${ticketNumber}`;
+    try {
+      if (!navigator.clipboard) {
+        throw new Error('Clipboard API unavailable');
+      }
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Could not copy link');
+    }
+  };
+
   const handleCommentEvent = React.useCallback(
     (event: BoardEvent) => {
       if (
@@ -406,9 +423,21 @@ export function TicketDetailSheet({
             {/* Header */}
             <div className="flex flex-col gap-1 pr-8">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[13px] tracking-wider text-trakk-teal">
-                  {projectKey}-{ticket.number}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[13px] tracking-wider text-trakk-teal">
+                    {projectKey}-{ticket.number}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyLink}
+                    aria-label="Copy link"
+                  >
+                    <Copy size={14} strokeWidth={1.75} aria-hidden="true" />
+                    Copy link
+                  </Button>
+                </div>
                 {canEdit && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
