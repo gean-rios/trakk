@@ -227,7 +227,7 @@ export function TicketDetailSheet({
         throw new Error('Clipboard API unavailable');
       }
       await navigator.clipboard.writeText(url);
-      toast.success('Link copied');
+      toast.success('Link copied to clipboard');
     } catch {
       toast.error('Could not copy link');
     }

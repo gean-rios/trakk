@@ -533,7 +533,7 @@ describe('TicketDetailSheet — Copy link button', () => {
     fireEvent.click(screen.getByRole('button', { name: COPY_LABEL }));
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Link copied');
+      expect(toast.success).toHaveBeenCalledWith('Link copied to clipboard');
     });
 
     expect(writeText).toHaveBeenCalledTimes(1);
